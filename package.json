@@ -1,0 +1,30 @@
+{
+  "name": "prestodom-breakout-demo",
+  "version": "1.0.0",
+  "description": "A breakout game to show the capabilities of PrestoDOM library",
+  "scripts": {
+    "compile-ps": "pulp build",
+    "compile-js": "webpack --progress --colors --optimize-minimize",
+    "start-psc": "pulp -w build",
+    "start-wds": "webpack-dev-server --content-base 'dist'",
+    "start": "concurrently --kill-others 'npm run start-psc' 'npm run start-wds'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sriharshachilakapati/prestodom-breakout-demo.git"
+  },
+  "author": "Sri Harsha Chilakapati",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sriharshachilakapati/prestodom-breakout-demo/issues"
+  },
+  "homepage": "https://github.com/sriharshachilakapati/prestodom-breakout-demo#readme",
+  "dependencies": {
+    "presto-ui": "^0.3.4"
+  },
+  "devDependencies": {
+    "concurrently": "^3.5.1",
+    "webpack": "^3.11.0",
+    "webpack-dev-server": "^2.11.1"
+  }
+}
