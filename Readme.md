@@ -4,6 +4,8 @@ PrestoDOM is a new in-development UI library written in PureScript language by J
 
 This repository showcases the capabilities of the library by making a Breakout game that you can play with the keyboard.
 
+![Screenshot](screenshot.gif)
+
 **PS:** The PrestoDOM library is internal at the moment, so you need access to it in order to compile this source code. We are going to open source it soon, so until then, you can browse the code to see how it is done. This notice will be removed once the code is made public for everyone.
 
 ## Cloning the repository
