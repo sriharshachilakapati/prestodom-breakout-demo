@@ -140,6 +140,9 @@ updatePlayScreen = do
   -- Clamp the paddle positions so that it won't leave the game area
   _ <- updateState "paddle" state.paddle { x = (max (min state.paddle.x $ 640 - state.paddle.w) 0) }
 
+  -- Launch the ball on space key
+  _ <- updateState "launched" $ state.launched || state.keySpace
+
   _ <- if state.launched == false then
           -- If the ball hasn't been launched, move it along with the paddle
           updateState "ball" state.ball

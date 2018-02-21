@@ -11,12 +11,12 @@ import FRP.Behavior.Time (millisSinceEpoch)
 import FRP.Event (subscribe)
 import FRP.Event.Keyboard (down, up)
 import FRP.Event.Time (animationFrame)
+import Halogen.VDom (VDom)
 import Halogen.VDom.DOM.Prop (Prop)
 import Prelude (Unit, bind, discard, map, negate, pure, show, unit, ($), (*), (*>), (+), (<$>), (<>))
 import PrestoDOM.Elements (linearLayout, relativeLayout, textView)
 import PrestoDOM.Properties (background, cornerRadius, gravity, height, id_, margin, orientation, text, width)
 import PrestoDOM.Util (getState, initializeState, patch, render, updateState)
-import PrestoDOM.Types
 
 -- Renders a key (used to give instructions to player) onto the screen
 renderKey :: forall i p. String -> String -> Int -> VDom (Array (Prop i)) p
@@ -120,28 +120,8 @@ main = do
   -- Initialize the state to an empty object
   initializeState
 
-  -- Create the entities in the game. We need a padde, a ball and some bricks.
-  _ <- updateState "paddle" { x: 245, y: 420, w: 150, h: 20 }
-  _ <- updateState "ball" { x: 250, y: 385, w: 20, h: 20 }
-  _ <- updateState "bricks" $
-        concatMap (\j ->
-          map (\i -> { x: i * 70 + 10, y: j * 30 + 20, w: 60, h: 20 }) (1..7)) (1..5)
-
-  -- Set the keys to false. We store the input here (because behaviors won't reflect key up or down)
-  _ <- updateState "keyLeft" false
-  _ <- updateState "keyRight" false
-  _ <- updateState "launched" false
-
-  -- The speeds of the ball. Make it go to top-right on the initial launch
-  _ <- updateState "ballSpeedX" 4
-  _ <- updateState "ballSpeedY" $ -4
-
-  -- The score and lives in the game. Necessary for almost any game
-  _ <- updateState "score" 0
-  _ <- updateState "lives" 3
-
-  -- The initial screen the game is in
-  _ <- updateState "currentScreen" PlayScreen
+  -- Reset the game to the start
+  resetGame
 
   -- Get the updated state and start rendering the game
   state <- getState
@@ -157,8 +137,38 @@ updateGame = do
   -- Switch the game screen and update them on their own
   case state.currentScreen of
     PlayScreen -> updatePlayScreen
-    GameOverScreen -> pure unit
-    YouWinScreen -> pure unit
+    _ -> if state.keySpace then resetGame else pure unit
+
+-- | Resets the game to the starting state. Creates the entities, and initializes the game state to the default.
+resetGame :: forall e. Eff (console :: CONSOLE | e) Unit
+resetGame = do
+  (state :: GameState) <- getState
+
+  -- Create the entities in the game. We need a padde, a ball and some bricks.
+  _ <- updateState "paddle" { x: 245, y: 420, w: 150, h: 20 }
+  _ <- updateState "ball" { x: 250, y: 385, w: 20, h: 20 }
+  _ <- updateState "bricks" $
+        concatMap (\j ->
+          map (\i -> { x: i * 70 + 10, y: j * 30 + 20, w: 60, h: 20 }) (1..7)) (1..5)
+
+  -- Set the keys to false. We store the input here (because behaviors won't reflect key up or down)
+  _ <- updateState "keyLeft" false
+  _ <- updateState "keyRight" false
+  _ <- updateState "keySpace" false
+  _ <- updateState "launched" false
+
+  -- The speeds of the ball. Make it go to top-right on the initial launch
+  _ <- updateState "ballSpeedX" 4
+  _ <- updateState "ballSpeedY" $ -4
+
+  -- The score and lives in the game. Necessary for almost any game
+  _ <- updateState "score" 0
+  _ <- updateState "lives" 3
+
+  -- The initial screen the game is in
+  _ <- updateState "currentScreen" PlayScreen
+
+  pure unit
 
 -- | The eval function is the function that gets called whenever a UI event occurred. In our case, the only event we
 -- | are calling this is with is the animationFrame event which repeatedly occurs when in browser animation frame is
@@ -173,13 +183,14 @@ listen = do
   _ <- down `subscribe` (\key -> case key of
           37 -> updateState "keyLeft" true
           39 -> updateState "keyRight" true
-          32 -> updateState "launched" true
+          32 -> updateState "keySpace" true
           _ -> getState)
 
   -- Setup keyup events
   _ <- up `subscribe` (\key -> case key of
           37 -> updateState "keyLeft" false
           39 -> updateState "keyRight" false
+          32 -> updateState "keySpace" false
           _ -> getState)
 
   -- Start patching the dom

@@ -9,6 +9,7 @@ type GameState =
   , ballSpeedY :: Int
   , keyLeft :: Boolean
   , keyRight :: Boolean
+  , keySpace :: Boolean
   , launched :: Boolean
   , score :: Int
   , lives :: Int
