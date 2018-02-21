@@ -14,8 +14,8 @@ import FRP.Event.Time (animationFrame)
 import Halogen.VDom (VDom)
 import Halogen.VDom.DOM.Prop (Prop)
 import Prelude (Unit, bind, discard, map, negate, pure, show, unit, ($), (*), (*>), (+), (<$>), (<>))
-import PrestoDOM.Elements (linearLayout, relativeLayout, textView)
-import PrestoDOM.Properties (background, cornerRadius, gravity, height, id_, margin, orientation, text, width)
+import PrestoDOM.Elements (imageView, linearLayout, relativeLayout, textView)
+import PrestoDOM.Properties (background, cornerRadius, gravity, height, id_, imageUrl, margin, orientation, text, width)
 import PrestoDOM.Util (getState, initializeState, patch, render, updateState)
 
 -- Renders a key (used to give instructions to player) onto the screen
@@ -73,15 +73,20 @@ world (state :: GameState) =
     , height "match_parent"
     , gravity "center"
     , orientation "vertical"
-    , background "#666"
+    , background "#2d3436"
     ]
     [ relativeLayout
         [ id_ "contentScreen"
         , width "640"
         , height "480"
-        , background "#ccc"
         ]
-        [ renderGameScreen state
+        [ imageView
+            [ id_ "background"
+            , width "match_parent"
+            , height "match_parent"
+            , imageUrl "resources/background"
+            ]
+        , renderGameScreen state
         , relativeLayout
             [ id_ "infoPanel"
             , width "match_parent"
@@ -106,7 +111,7 @@ world (state :: GameState) =
         , width "640"
         , height "70"
         , gravity "center"
-        , background "#bbb"
+        , background "#6b967d"
         ]
         [ renderKey "left" "<" 1
         , renderKey "launch" "SPACE" 5

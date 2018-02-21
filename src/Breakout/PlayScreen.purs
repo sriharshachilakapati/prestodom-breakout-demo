@@ -8,34 +8,32 @@ import Data.Traversable (traverse)
 import Halogen.VDom (VDom)
 import Halogen.VDom.DOM.Prop (Prop)
 import Prelude (Unit, bind, map, max, min, negate, not, pure, show, unit, ($), (&&), (*>), (+), (-), (/), (<=), (<>), (==), (>), (>=), (||))
-import PrestoDOM.Elements (linearLayout, relativeLayout)
-import PrestoDOM.Properties (background, cornerRadius, height, id_, margin, width)
+import PrestoDOM.Elements (imageView, relativeLayout)
+import PrestoDOM.Properties (height, id_, imageUrl, margin, width)
 import PrestoDOM.Util (getState, updateState)
 
 -- | Renders an entity onto the screen by creating a VDom element that represents the entity
-renderEntity :: forall i p. String -> String -> Int -> Entity -> VDom (Array (Prop i)) p
-renderEntity entityId bgColor radius entity =
-  linearLayout
+renderEntity :: forall i p. String -> String -> Entity -> VDom (Array (Prop i)) p
+renderEntity entityId imageSource entity =
+  imageView
     [ id_ entityId
     , margin ((show entity.x) <> "," <> (show entity.y) <> ",0,0")
     , width $ show entity.w
     , height $ show entity.h
-    , background bgColor
-    , cornerRadius $ show radius
+    , imageUrl imageSource
     ]
-    []
 
 -- | A helper function for rendering bricks
 renderBrick :: forall i p. Entity -> VDom (Array (Prop i)) p
-renderBrick brick = renderEntity ("brick" <> (show brick.x) <> (show brick.y)) "#888" 5 brick
+renderBrick brick = renderEntity ("brick" <> (show brick.x) <> (show brick.y)) "resources/brick" brick
 
 -- | A helper function for rendering the paddle
 renderPaddle :: forall i p. Entity -> VDom (Array (Prop i)) p
-renderPaddle = renderEntity "paddle" "#888" 5
+renderPaddle = renderEntity "paddle" "resources/bat"
 
 -- | A helper function for rendering the ball
 renderBall :: forall i p. Entity -> VDom (Array (Prop i)) p
-renderBall = renderEntity "ball" "#999" 360
+renderBall = renderEntity "ball" "resources/ball"
 
 -- | A utility function that renders the game onto the screen
 renderPlayScreen :: forall i p. GameState -> VDom (Array (Prop i)) p
@@ -129,12 +127,12 @@ updatePlayScreen = do
 
   -- If the left key is pressed, then move the paddle to the left
   _ <- if state.keyLeft then
-          updateState "paddle" state.paddle { x = state.paddle.x - 4 }
+          updateState "paddle" state.paddle { x = state.paddle.x - 5 }
         else getState
 
   -- If the right key is pressed, then move the paddle to the right
   _ <- if state.keyRight then
-          updateState "paddle" state.paddle { x = state.paddle.x + 4 }
+          updateState "paddle" state.paddle { x = state.paddle.x + 5 }
         else getState
 
   -- Clamp the paddle positions so that it won't leave the game area
