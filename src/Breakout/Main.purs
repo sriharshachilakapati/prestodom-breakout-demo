@@ -16,6 +16,7 @@ import Halogen.VDom.DOM.Prop (Prop)
 import Prelude (Unit, bind, discard, map, negate, pure, show, unit, ($), (*), (*>), (+), (<$>), (<>))
 import PrestoDOM.Elements (imageView, linearLayout, relativeLayout, textView)
 import PrestoDOM.Properties (background, cornerRadius, gravity, height, id_, imageUrl, margin, orientation, text, width)
+import PrestoDOM.Types (Length(..))
 import PrestoDOM.Util (getState, initializeState, patch, render, updateState)
 
 -- Renders a key (used to give instructions to player) onto the screen
@@ -23,8 +24,8 @@ renderKey :: forall i p. String -> String -> Int -> VDom (Array (Prop i)) p
 renderKey keyId key size =
   linearLayout
     [ id_ keyId
-    , width $ show (size * 50)
-    , height "50"
+    , width $ V (size * 50)
+    , height (V 50)
     , margin "5,5,5,5"
     , gravity "center"
     , background "#ddd"
@@ -32,8 +33,8 @@ renderKey keyId key size =
     ]
     [ textView
         [ text key
-        , width "match_parent"
-        , height "20"
+        , width Match_Parent
+        , height (V 20)
         , gravity "center"
         ]
     ]
@@ -43,13 +44,13 @@ renderTextScreen :: forall i p. String -> VDom (Array (Prop i)) p
 renderTextScreen content =
   linearLayout
     [ id_ "empty"
-    , width "match_parent"
-    , height "match_parent"
+    , width Match_Parent
+    , height Match_Parent
     , gravity "center"
     ]
     [ textView
-      [ width "match_parent"
-      , height "20"
+      [ width Match_Parent
+      , height (V 20)
       , gravity "center"
       , text content
       ]
@@ -69,28 +70,28 @@ world :: forall i p. GameState -> VDom (Array (Prop i)) p
 world (state :: GameState) =
   linearLayout
     [ id_ "container"
-    , width "match_parent"
-    , height "match_parent"
+    , width Match_Parent
+    , height Match_Parent
     , gravity "center"
     , orientation "vertical"
     , background "#2d3436"
     ]
     [ relativeLayout
         [ id_ "contentScreen"
-        , width "640"
-        , height "480"
+        , width (V 640)
+        , height (V 480)
         ]
         [ imageView
             [ id_ "background"
-            , width "match_parent"
-            , height "match_parent"
+            , width Match_Parent
+            , height Match_Parent
             , imageUrl "resources/background"
             ]
         , renderGameScreen state
         , relativeLayout
             [ id_ "infoPanel"
-            , width "match_parent"
-            , height "match_parent"
+            , width Match_Parent
+            , height Match_Parent
             , margin "10,10,10,10"
             ]
             [ textView
@@ -100,16 +101,16 @@ world (state :: GameState) =
             , textView
                 [ id_ "livesLabel"
                 , text ("Lives: " <> (show state.lives))
-                , width "match_parent"
-                , height "match_parent"
+                , width Match_Parent
+                , height Match_Parent
                 , gravity "right"
                 ]
             ]
         ]
     , linearLayout
         [ id_ "controls"
-        , width "640"
-        , height "70"
+        , width (V 640)
+        , height (V 70)
         , gravity "center"
         , background "#6b967d"
         ]

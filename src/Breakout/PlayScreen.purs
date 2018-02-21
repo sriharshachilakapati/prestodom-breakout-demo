@@ -10,6 +10,7 @@ import Halogen.VDom.DOM.Prop (Prop)
 import Prelude (Unit, bind, map, max, min, negate, not, pure, show, unit, ($), (&&), (*>), (+), (-), (/), (<=), (<>), (==), (>), (>=), (||))
 import PrestoDOM.Elements (imageView, relativeLayout)
 import PrestoDOM.Properties (height, id_, imageUrl, margin, width)
+import PrestoDOM.Types (Length(..))
 import PrestoDOM.Util (getState, updateState)
 
 -- | Renders an entity onto the screen by creating a VDom element that represents the entity
@@ -18,8 +19,8 @@ renderEntity entityId imageSource entity =
   imageView
     [ id_ entityId
     , margin ((show entity.x) <> "," <> (show entity.y) <> ",0,0")
-    , width $ show entity.w
-    , height $ show entity.h
+    , width $ V entity.w
+    , height $ V entity.h
     , imageUrl imageSource
     ]
 
@@ -40,15 +41,15 @@ renderPlayScreen :: forall i p. GameState -> VDom (Array (Prop i)) p
 renderPlayScreen state =
   relativeLayout
     [ id_ "world"
-    , width "match_parent"
-    , height "match_parent"
+    , width Match_Parent
+    , height Match_Parent
     ]
     [ renderPaddle state.paddle
     , renderBall state.ball
     , relativeLayout
         [ id_ "bricks"
-        , width "match_parent"
-        , height "match_parent"
+        , width Match_Parent
+        , height Match_Parent
         ]
         (map renderBrick state.bricks)
     ]
