@@ -9,5 +9,6 @@ rm index_bundle.js.map
 rm index.html
 rm -rf resources
 mv dist/* .
+git add .
 git commit -m "Updated new binaries"
 git push origin gh-pages
