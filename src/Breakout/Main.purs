@@ -7,13 +7,11 @@ import Control.Monad.Eff.Console (CONSOLE)
 import DOM (DOM)
 import Data.Array (concatMap, (..))
 import FRP (FRP)
-import FRP.Behavior.Time (millisSinceEpoch)
-import FRP.Event (subscribe)
-import FRP.Event.Keyboard (down, up)
+import FRP.Behavior.Keyboard (key)
 import FRP.Event.Time (animationFrame)
 import Halogen.VDom (VDom)
 import Halogen.VDom.DOM.Prop (Prop)
-import Prelude (Unit, bind, discard, map, negate, pure, show, unit, ($), (*), (*>), (+), (<$>), (<>))
+import Prelude (Unit, bind, discard, map, negate, pure, show, unit, ($), (*), (*>), (+), (<$>), (<>), (<*>))
 import PrestoDOM.Elements (imageView, linearLayout, relativeLayout, textView)
 import PrestoDOM.Properties (background, cornerRadius, gravity, height, id_, imageUrl, margin, orientation, text, width)
 import PrestoDOM.Types (Length(..))
@@ -179,28 +177,18 @@ resetGame = do
 -- | The eval function is the function that gets called whenever a UI event occurred. In our case, the only event we
 -- | are calling this is with is the animationFrame event which repeatedly occurs when in browser animation frame is
 -- | granted for us. And yes, this uses `window.requestAnimationFrame` under the hood.
-eval :: forall e. Number -> Eff (console :: CONSOLE | e) GameState
-eval _ = updateGame *> getState
+eval :: forall e. Boolean -> Boolean -> Boolean -> Eff (console :: CONSOLE | e) GameState
+eval keyLeft keyRight keySpace =
+  updateState "keyLeft" keyLeft *>
+  updateState "keyRight" keyRight *>
+  updateState "keySpace" keySpace *>
+  updateGame *> getState
 
 -- This function sets up the events to the game and the behaviors. Once that is done, we start patching the dom
 listen :: forall e. Eff (console :: CONSOLE, frp :: FRP | e) (Eff (frp :: FRP, console :: CONSOLE | e) Unit)
 listen = do
-  -- Setup keydown events
-  _ <- down `subscribe` (\key -> case key of
-          37 -> updateState "keyLeft" true
-          39 -> updateState "keyRight" true
-          32 -> updateState "keySpace" true
-          _ -> getState)
-
-  -- Setup keyup events
-  _ <- up `subscribe` (\key -> case key of
-          37 -> updateState "keyLeft" false
-          39 -> updateState "keyRight" false
-          32 -> updateState "keySpace" false
-          _ -> getState)
-
   -- Start patching the dom
-  let behavior = eval <$> millisSinceEpoch
+  let behavior = eval <$> (key 37) <*> (key 39) <*> (key 32)
   let events = (animationFrame)
 
   patch world behavior events
