@@ -5,3 +5,4 @@ output/
 .psc-ide-port
 .purs-repl
 dist/
+.psci_modules/
