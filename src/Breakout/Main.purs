@@ -9,16 +9,15 @@ import Data.Array (concatMap, (..))
 import FRP (FRP)
 import FRP.Behavior.Keyboard (key)
 import FRP.Event.Time (animationFrame)
-import Halogen.VDom (VDom)
-import Halogen.VDom.DOM.Prop (Prop)
-import Prelude (Unit, bind, discard, map, negate, pure, show, unit, ($), (*), (*>), (+), (<$>), (<>), (<*>))
+import Prelude (Unit, bind, map, negate, pure, show, unit, ($), (*), (*>), (+), (<$>), (<>), (<*>))
+import PrestoDOM.Core (PrestoDOM)
 import PrestoDOM.Elements (imageView, linearLayout, relativeLayout, textView)
 import PrestoDOM.Properties (background, cornerRadius, gravity, height, id_, imageUrl, margin, orientation, text, width)
 import PrestoDOM.Types (Length(..))
-import PrestoDOM.Util (getState, initializeState, patch, render, updateState)
+import PrestoDOM.Util (render)
 
 -- Renders a key (used to give instructions to player) onto the screen
-renderKey :: forall i p. String -> String -> Int -> VDom (Array (Prop i)) p
+renderKey :: forall i p. String -> String -> Int -> PrestoDOM i p
 renderKey keyId key size =
   linearLayout
     [ id_ keyId
@@ -38,7 +37,7 @@ renderKey keyId key size =
     ]
 
 -- | A function that renders a screen with text
-renderTextScreen :: forall i p. String -> VDom (Array (Prop i)) p
+renderTextScreen :: forall i p. String -> PrestoDOM i p
 renderTextScreen content =
   linearLayout
     [ id_ "empty"
@@ -56,7 +55,7 @@ renderTextScreen content =
 
 -- | The function that is responsible to render the game screen. Checks the current screen and calls the respective
 -- | render function, one specific to that screen.
-renderGameScreen :: forall i p. GameState -> VDom (Array (Prop i)) p
+renderGameScreen :: forall i p. GameState -> PrestoDOM i p
 renderGameScreen state = case state.currentScreen of
   PlayScreen -> renderPlayScreen state
   GameOverScreen -> renderTextScreen "Alas! Game Over!"
@@ -64,7 +63,7 @@ renderGameScreen state = case state.currentScreen of
 
 -- | The game world. Usually you'll notice the word widget, but this is named as world as it contains all the game
 -- | entities. This is the template of the whole screen.
-world :: forall i p. GameState -> VDom (Array (Prop i)) p
+world :: forall i p. GameState -> PrestoDOM i p
 world (state :: GameState) =
   linearLayout
     [ id_ "container"
@@ -121,74 +120,49 @@ world (state :: GameState) =
 -- | The entry point of the game. Here we initialize the state, create the entities, and starts rendering the game
 main :: forall e. Eff (dom :: DOM, console :: CONSOLE, frp :: FRP | e) Unit
 main = do
-  -- Initialize the state to an empty object
-  initializeState
-
-  -- Reset the game to the start
-  resetGame
-
-  -- Get the updated state and start rendering the game
-  state <- getState
-  render (world state) listen
-
-  pure unit
+    let initialState = resetGame
+    { stateBeh, updateState } <- render world initialState
+    updateState (eval <$> key 37 <*> key 39 <*> key 32 <*> stateBeh) animationFrame *>
+    pure unit
 
 -- | Central place to update the whole game
-updateGame :: forall e. Eff (console :: CONSOLE | e) Unit
-updateGame = do
-  (state :: GameState) <- getState
-
+updateGame :: GameState -> GameState
+updateGame state = do
   -- Switch the game screen and update them on their own
   case state.currentScreen of
-    PlayScreen -> updatePlayScreen
-    _ -> if state.keySpace then resetGame else pure unit
+    PlayScreen -> updatePlayScreen state
+    _ -> if state.keySpace then resetGame else state
 
 -- | Resets the game to the starting state. Creates the entities, and initializes the game state to the default.
-resetGame :: forall e. Eff (console :: CONSOLE | e) Unit
-resetGame = do
-  (state :: GameState) <- getState
-
-  -- Create the entities in the game. We need a padde, a ball and some bricks.
-  _ <- updateState "paddle" { x: 245, y: 420, w: 150, h: 20 }
-  _ <- updateState "ball" { x: 250, y: 385, w: 20, h: 20 }
-  _ <- updateState "bricks" $
-        concatMap (\j ->
-          map (\i -> { x: i * 70 + 10, y: j * 30 + 20, w: 60, h: 20 }) (1..7)) (1..5)
-
-  -- Set the keys to false. We store the input here (because behaviors won't reflect key up or down)
-  _ <- updateState "keyLeft" false
-  _ <- updateState "keyRight" false
-  _ <- updateState "keySpace" false
-  _ <- updateState "launched" false
+resetGame :: GameState
+resetGame =
+  { -- Create the entities in the game. We need a padde, a ball and some bricks.
+    bricks: concatMap (\j ->
+              map (\i -> { x: i * 70 + 10, y: j * 30 + 20, w: 60, h: 20 }) (1..7)) (1..5)
+  , paddle: { x: 245, y: 420, w: 150, h: 20 }
+  , ball: { x: 250, y: 385, w: 20, h: 20 }
 
   -- The speeds of the ball. Make it go to top-right on the initial launch
-  _ <- updateState "ballSpeedX" 4
-  _ <- updateState "ballSpeedY" $ -4
+  , ballSpeedX: 4
+  , ballSpeedY: -4
+
+  -- Set the keys to false. We store the input here (because behaviors won't reflect key up or down)
+  , keyLeft: false
+  , keyRight: false
+  , keySpace: false
+  , launched: false
 
   -- The score and lives in the game. Necessary for almost any game
-  _ <- updateState "score" 0
-  _ <- updateState "lives" 3
+  , score: 0
+  , lives: 3
 
   -- The initial screen the game is in
-  _ <- updateState "currentScreen" PlayScreen
-
-  pure unit
+  , currentScreen: PlayScreen
+  }
 
 -- | The eval function is the function that gets called whenever a UI event occurred. In our case, the only event we
 -- | are calling this is with is the animationFrame event which repeatedly occurs when in browser animation frame is
 -- | granted for us. And yes, this uses `window.requestAnimationFrame` under the hood.
-eval :: forall e. Boolean -> Boolean -> Boolean -> Eff (console :: CONSOLE | e) GameState
-eval keyLeft keyRight keySpace =
-  updateState "keyLeft" keyLeft *>
-  updateState "keyRight" keyRight *>
-  updateState "keySpace" keySpace *>
-  updateGame *> getState
-
--- This function sets up the events to the game and the behaviors. Once that is done, we start patching the dom
-listen :: forall e. Eff (console :: CONSOLE, frp :: FRP | e) (Eff (frp :: FRP, console :: CONSOLE | e) Unit)
-listen = do
-  -- Start patching the dom
-  let behavior = eval <$> (key 37) <*> (key 39) <*> (key 32)
-  let events = (animationFrame)
-
-  patch world behavior events
+eval :: Boolean -> Boolean -> Boolean -> GameState -> GameState
+eval keyLeft keyRight keySpace state =
+  updateGame state { keyLeft = keyLeft, keyRight = keyRight, keySpace = keySpace }

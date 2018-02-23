@@ -1,20 +1,16 @@
 module Breakout.PlayScreen where
 
-import Breakout.Types (Entity, GameScreen(..), GameState)
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Console (CONSOLE)
-import Data.Array (filter, length)
-import Data.Traversable (traverse)
-import Halogen.VDom (VDom)
-import Halogen.VDom.DOM.Prop (Prop)
-import Prelude (Unit, bind, map, max, min, negate, not, pure, show, unit, ($), (&&), (*>), (+), (-), (/), (<=), (<>), (==), (>), (>=), (||))
+import Breakout.Types (Entity, GameScreen(..), GameState, BrickUpdateResponse)
+import Data.Array (length, snoc, (!!))
+import Data.Maybe (Maybe(Just, Nothing))
+import Prelude (map, max, min, negate, not, show, ($), (&&), (+), (-), (/), (<=), (<>), (==), (>), (>=), (>>>), (||))
+import PrestoDOM.Core (PrestoDOM)
 import PrestoDOM.Elements (imageView, relativeLayout)
 import PrestoDOM.Properties (height, id_, imageUrl, margin, width)
 import PrestoDOM.Types (Length(..))
-import PrestoDOM.Util (getState, updateState)
 
 -- | Renders an entity onto the screen by creating a VDom element that represents the entity
-renderEntity :: forall i p. String -> String -> Entity -> VDom (Array (Prop i)) p
+renderEntity :: forall i p. String -> String -> Entity -> PrestoDOM i p
 renderEntity entityId imageSource entity =
   imageView
     [ id_ entityId
@@ -25,19 +21,19 @@ renderEntity entityId imageSource entity =
     ]
 
 -- | A helper function for rendering bricks
-renderBrick :: forall i p. Entity -> VDom (Array (Prop i)) p
+renderBrick :: forall i p. Entity -> PrestoDOM i p
 renderBrick brick = renderEntity ("brick" <> (show brick.x) <> (show brick.y)) "resources/brick" brick
 
 -- | A helper function for rendering the paddle
-renderPaddle :: forall i p. Entity -> VDom (Array (Prop i)) p
+renderPaddle :: forall i p. Entity -> PrestoDOM i p
 renderPaddle = renderEntity "paddle" "resources/bat"
 
 -- | A helper function for rendering the ball
-renderBall :: forall i p. Entity -> VDom (Array (Prop i)) p
+renderBall :: forall i p. Entity -> PrestoDOM i p
 renderBall = renderEntity "ball" "resources/ball"
 
 -- | A utility function that renders the game onto the screen
-renderPlayScreen :: forall i p. GameState -> VDom (Array (Prop i)) p
+renderPlayScreen :: forall i p. GameState -> PrestoDOM i p
 renderPlayScreen state =
   relativeLayout
     [ id_ "world"
@@ -79,117 +75,150 @@ getIntersectionHeight a b = if ay2 > by2 then by2 - ay1 else ay2 - by1
     by2 = by1 + b.h
 
 -- | A function that bounces the ball off another entity in the game.
-bounce :: forall e. Entity -> Eff (console :: CONSOLE | e) Unit
-bounce other = do
-  (state :: GameState) <- getState
-
+bounce :: GameState -> Entity -> GameState
+bounce state other = do
   -- Get the penetration area between the two entities
   let iw = getIntersectionWidth state.ball other
   let ih = getIntersectionHeight state.ball other
 
-  -- Depending the penetration depth, alter the speeds of the ball and update the state
-  _ <- if iw >= ih then updateState "ballSpeedY" $ - state.ballSpeedY else getState
-  _ <- if iw <= ih then updateState "ballSpeedX" $ - state.ballSpeedX else getState
+  -- Change the ball speed to bounce and correct the ball position so that it doesn't get stuck inside brick or paddle
+  changeBallSpeed iw ih $ correctBallPosition iw ih state
 
-  -- Move the ball to the vertical position just before the collision occurs for accurate response
-  _ <- if iw >= ih then
-        if state.ball.y > other.y then
-          updateState "ball" state.ball { y = state.ball.y + ih }
+  where
+    -- Depending the penetration depth, alter the speeds of the ball and update the state
+    changeBallSpeed :: Int -> Int -> GameState -> GameState
+    changeBallSpeed iw ih s = changeVerticalSpeed iw ih $ changeHorizontalSpeed iw ih s
+
+    -- If the width of intersection rectangle is greater than the height, it is a collision on either top or bottom of ball
+    changeVerticalSpeed :: Int -> Int -> GameState -> GameState
+    changeVerticalSpeed iw ih s = if iw >= ih then s { ballSpeedY = - s.ballSpeedY } else s
+
+    -- If the height of intersection rectangle is greater than the width, it is a collision on either left or right of ball
+    changeHorizontalSpeed :: Int -> Int -> GameState -> GameState
+    changeHorizontalSpeed iw ih s = if iw <= ih then s { ballSpeedX = - s.ballSpeedX } else s
+
+    -- Move the ball position to the moment before the collision occurred
+    correctBallPosition :: Int -> Int -> GameState -> GameState
+    correctBallPosition iw ih s = correctVerticalPosition iw ih $ correctHorizontalPosition iw ih s
+
+    -- Move the ball to the vertical position just before the collision occurs for accurate response
+    correctVerticalPosition :: Int -> Int -> GameState -> GameState
+    correctVerticalPosition iw ih s =
+      if iw >= ih then
+        if s.ball.y > other.y then
+          s { ball = s.ball { y = s.ball.y + ih } }
         else
-          updateState "ball" state.ball { y = state.ball.y - ih }
-       else getState
+          s { ball = s.ball { y = s.ball.y - ih } }
+      else s
 
-  -- Move the ball to the horizontal position just before the collision occurs for accurate response
-  _ <- if iw <= ih then
-        if state.ball.x > other.x then
-          updateState "ball" state.ball { x = state.ball.x - iw }
+    -- Move the ball to the horizontal position just before the collision occurs for accurate response
+    correctHorizontalPosition :: Int -> Int -> GameState -> GameState
+    correctHorizontalPosition iw ih s =
+      if iw <= ih then
+        if s.ball.x > other.x then
+          s { ball = s.ball { x = s.ball.x - iw } }
         else
-          updateState "ball" state.ball { x = state.ball.x + iw }
-      else getState
-
-  pure unit
-
--- | A function that checks collision between a brick and the ball. If intersects, it tries to bounce the ball off the
--- | brick. It also returns the updated brick record stating the updated dead property
-checkBrickCollision :: forall e. Entity -> Eff (console :: CONSOLE | e) Entity
-checkBrickCollision brick = do
-  (state :: GameState) <- getState
-
-  -- Destroy the brick if it hits the ball, increase the score and bounce the ball
-  if intersects brick state.ball then
-    updateState "score" (state.score + 1) *> bounce brick *> pure brick { dead = true }
-    else
-      pure brick { dead = false }
+          s { ball = s.ball { x = s.ball.x + iw } }
+      else s
 
 -- | This function is the place where the game is updated. We move the paddle, the ball, check for intersections, etc.,
-updatePlayScreen :: forall e. Eff (console :: CONSOLE | e) Unit
-updatePlayScreen = do
-  (state :: GameState) <- getState
+updatePlayScreen :: GameState -> GameState
+updatePlayScreen =
+  (updatePaddle >>> updateBall >>> checkCollisions >>> checkWinCondition >>> checkGameOverCondition)
 
-  -- If the left key is pressed, then move the paddle to the left
-  _ <- if state.keyLeft then
-          updateState "paddle" state.paddle { x = state.paddle.x - 5 }
-        else getState
+  where
+    updatePaddle :: GameState -> GameState
+    updatePaddle = checkMovePaddleLeft >>> checkMovePaddleRight >>> clampPaddleToScreen
 
-  -- If the right key is pressed, then move the paddle to the right
-  _ <- if state.keyRight then
-          updateState "paddle" state.paddle { x = state.paddle.x + 5 }
-        else getState
+    -- If the left key is pressed, move the paddle to the left
+    checkMovePaddleLeft :: GameState -> GameState
+    checkMovePaddleLeft s = if s.keyLeft then s { paddle = s.paddle { x = s.paddle.x - 5 } } else s
 
-  -- Clamp the paddle positions so that it won't leave the game area
-  _ <- updateState "paddle" state.paddle { x = (max (min state.paddle.x $ 640 - state.paddle.w) 0) }
+    -- If the right key is pressed, move the paddle to the right
+    checkMovePaddleRight :: GameState -> GameState
+    checkMovePaddleRight s = if s.keyRight then s { paddle = s.paddle { x = s.paddle.x + 5 } } else s
 
-  -- Launch the ball on space key
-  _ <- updateState "launched" $ state.launched || state.keySpace
+    -- Don't let the paddle move out of the game screen! Clamp it's position to the screen boundaries
+    clampPaddleToScreen :: GameState -> GameState
+    clampPaddleToScreen s = s { paddle = s.paddle { x = (max (min s.paddle.x $ 640 - s.paddle.w) 0) } }
 
-  _ <- if state.launched == false then
-          -- If the ball hasn't been launched, move it along with the paddle
-          updateState "ball" state.ball
-            { x = state.paddle.x + state.paddle.w / 2 - state.ball.w / 2
-            , y = state.paddle.y - 30
-            }
-        else
-          -- The ball has been launched already. Move it according to it's own speed
-          updateState "ball" state.ball
-            { x = state.ball.x + state.ballSpeedX
-            , y = state.ball.y + state.ballSpeedY
-            }
+    updateBall :: GameState -> GameState
+    updateBall = checkLaunchBall >>> moveBall
 
-  -- Bounce the ball horizontally if hit to walls of the game screen
-  _ <- if state.ball.x <= 0 || state.ball.x + state.ball.w >= 640 then
-          updateState "ballSpeedX" $ - state.ballSpeedX
-        else getState
+    -- Launch the ball if space key is pressed
+    checkLaunchBall :: GameState -> GameState
+    checkLaunchBall s = s { launched = s.launched || s.keySpace }
 
-  -- Bounce the ball vertically if it hits the top wall of the screen
-  _ <- if state.ball.y <= 0 then
-          updateState "ballSpeedY" $ - state.ballSpeedY
-        else getState
+    -- If the ball is launched, apply the speed to the ball, else stick it to the paddle
+    moveBall :: GameState -> GameState
+    moveBall s = if s.launched then applySpeedToBall s else stickBallToPaddle s
 
-  -- Bounce the ball if it hits the paddle
-  _ <- if intersects state.ball state.paddle then bounce state.paddle else pure unit
+    stickBallToPaddle :: GameState -> GameState
+    stickBallToPaddle s = s { ball = s.ball
+                                { x = s.paddle.x + s.paddle.w / 2 - s.ball.w / 2
+                                , y = s.paddle.y - 30
+                                }
+                            }
 
-  -- If the ball hits the bottom wall of the screen, you die. Reset the position, and decrease a life
-  _ <- if state.ball.y + state.ball.h >= 480 then do
-          _ <- updateState "launched" false
-          _ <- updateState "ballSpeedY" $ -4
-          _ <- updateState "lives" $ state.lives - 1
-          pure unit
-        else pure unit
+    applySpeedToBall :: GameState -> GameState
+    applySpeedToBall s = s { ball = s.ball { x = s.ball.x + s.ballSpeedX, y = s.ball.y + s.ballSpeedY }}
 
-  -- Traverse all the bricks checking for collisions with the ball.
-  updatedBricks <- traverse checkBrickCollision state.bricks
+    -- Check the game for collisions and respond to them
+    checkCollisions :: GameState -> GameState
+    checkCollisions = checkWallCollisions >>> checkPaddleCollision >>> checkBricksCollision
 
-  -- Filter away all the dead bricks from the list of bricks in the game state
-  _ <- updateState "bricks" $ filter (\brick -> brick.dead == false) updatedBricks
+    -- Check the collisions between ball and walls
+    checkWallCollisions :: GameState -> GameState
+    checkWallCollisions = checkSideWallCollisions >>> checkTopWallCollision >>> checkBottomWallCollision
 
-  -- If all the bricks are finished, go to the win screen
-  _ <- if length state.bricks == 0 then
-          updateState "currentScreen" YouWinScreen
-        else getState
+    -- Bounce ball horizontally if collision with side walls
+    checkSideWallCollisions :: GameState -> GameState
+    checkSideWallCollisions s =
+      if s.ball.x <= 0 || s.ball.x + s.ball.w >= 640 then s { ballSpeedX = - s.ballSpeedX } else s
 
-  -- If the lives became 0, go to the game over screen
-  _ <- if state.lives == 0 then
-          updateState "currentScreen" GameOverScreen
-        else getState
+    -- Bounce ball vertically if collision with top wall
+    checkTopWallCollision :: GameState -> GameState
+    checkTopWallCollision s = if s.ball.y <= 0 then s { ballSpeedY = - s.ballSpeedY } else s
 
-  pure unit
+    -- You lose a life if the ball collides the bottom wall
+    checkBottomWallCollision :: GameState -> GameState
+    checkBottomWallCollision s =
+      if s.ball.y + s.ball.h >= 480 then s { launched = false, ballSpeedY = -4, lives = s.lives - 1 } else s
+
+    -- Bounce the ball if it collides with the paddle
+    checkPaddleCollision :: GameState -> GameState
+    checkPaddleCollision s = if intersects s.ball s.paddle then bounce s s.paddle else s
+
+    -- Process the bricks and check collisions with the ball
+    checkBricksCollision :: GameState -> GameState
+    checkBricksCollision s = do
+      let { bricks, state } = updateBricks { bricks: [], state: s } 0
+      state { bricks = bricks }
+
+    -- This is a helper function that is used to recursively iterate over the bricks and update the state
+    updateBricks :: BrickUpdateResponse -> Int -> BrickUpdateResponse
+    updateBricks { bricks, state } brickIndex =
+      case state.bricks !! brickIndex of
+
+        -- If there is no brick at this index, we returned the end! Return the response
+        Nothing -> { bricks: bricks, state: state }
+
+        -- If there is a brick indeed, we need to process it in the game
+        Just brick ->
+          if intersects brick state.ball then do
+            -- Bounce the ball on the brick and update the score
+            let newState = (bounce state brick) { score = state.score + 1 }
+
+            -- This brick is destroyed, so don't add it to the array and continue with next brick
+            updateBricks { bricks: bricks, state: newState } (brickIndex + 1)
+          else
+            -- There is no intersection with this brick, add it to the array and continue with next brick
+            updateBricks { bricks: bricks `snoc` brick, state: state } (brickIndex + 1)
+
+    -- If there are no bricks remaining in the screen, then the player wins
+    checkWinCondition :: GameState -> GameState
+    checkWinCondition s = if length s.bricks == 0 then s { currentScreen = YouWinScreen } else s
+
+    -- If there are no lives left, the player is dead and the game is over!
+    checkGameOverCondition :: GameState -> GameState
+    checkGameOverCondition s = if s.lives == 0 then s { currentScreen = GameOverScreen } else s

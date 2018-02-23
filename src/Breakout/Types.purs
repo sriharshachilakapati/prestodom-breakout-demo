@@ -22,8 +22,13 @@ type Entity =
   , y :: Int
   , w :: Int
   , h :: Int
-  , dead :: Boolean
   }
 
 -- | A type enumeration that specifies which game state we are in
 data GameScreen = PlayScreen | GameOverScreen | YouWinScreen
+
+-- | A type used in PlayScreen while updating the bricks
+type BrickUpdateResponse =
+  { bricks :: Array Entity
+  , state :: GameState
+  }
