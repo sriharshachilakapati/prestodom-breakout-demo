@@ -3,7 +3,7 @@ module Breakout.PlayScreen where
 import Breakout.Types (Entity, GameScreen(..), GameState, BrickUpdateResponse)
 import Data.Array (length, snoc, (!!))
 import Data.Maybe (Maybe(Just, Nothing))
-import Prelude (map, max, min, negate, not, show, ($), (&&), (+), (-), (/), (<=), (<>), (==), (>), (>=), (>>>), (||))
+import Prelude (map, max, min, negate, not, show, ($), (&&), (+), (-), (/), (<), (<=), (<>), (==), (>), (>=), (>>>), (||))
 import PrestoDOM.Core (PrestoDOM)
 import PrestoDOM.Elements (imageView, relativeLayout)
 import PrestoDOM.Properties (height, id_, imageUrl, margin, width)
@@ -105,7 +105,7 @@ bounce state other = do
     correctVerticalPosition :: Int -> Int -> GameState -> GameState
     correctVerticalPosition iw ih s =
       if iw >= ih then
-        if s.ball.y > other.y then
+        if s.ballSpeedY < 0 then
           s { ball = s.ball { y = s.ball.y + ih } }
         else
           s { ball = s.ball { y = s.ball.y - ih } }
@@ -115,7 +115,7 @@ bounce state other = do
     correctHorizontalPosition :: Int -> Int -> GameState -> GameState
     correctHorizontalPosition iw ih s =
       if iw <= ih then
-        if s.ball.x > other.x then
+        if s.ballSpeedX > 0 then
           s { ball = s.ball { x = s.ball.x - iw } }
         else
           s { ball = s.ball { x = s.ball.x + iw } }
@@ -127,6 +127,7 @@ updatePlayScreen =
   (updatePaddle >>> updateBall >>> checkCollisions >>> checkWinCondition >>> checkGameOverCondition)
 
   where
+    -- Update the paddle in the game world and update the state
     updatePaddle :: GameState -> GameState
     updatePaddle = checkMovePaddleLeft >>> checkMovePaddleRight >>> clampPaddleToScreen
 
@@ -142,6 +143,7 @@ updatePlayScreen =
     clampPaddleToScreen :: GameState -> GameState
     clampPaddleToScreen s = s { paddle = s.paddle { x = (max (min s.paddle.x $ 640 - s.paddle.w) 0) } }
 
+    -- Update the ball in the game world and update the state
     updateBall :: GameState -> GameState
     updateBall = checkLaunchBall >>> moveBall
 
@@ -153,6 +155,7 @@ updatePlayScreen =
     moveBall :: GameState -> GameState
     moveBall s = if s.launched then applySpeedToBall s else stickBallToPaddle s
 
+    -- A function that repositions the ball such that it is with the paddle
     stickBallToPaddle :: GameState -> GameState
     stickBallToPaddle s = s { ball = s.ball
                                 { x = s.paddle.x + s.paddle.w / 2 - s.ball.w / 2
@@ -160,8 +163,9 @@ updatePlayScreen =
                                 }
                             }
 
+    -- Apply the speed to the ball. This makes the ball move
     applySpeedToBall :: GameState -> GameState
-    applySpeedToBall s = s { ball = s.ball { x = s.ball.x + s.ballSpeedX, y = s.ball.y + s.ballSpeedY }}
+    applySpeedToBall s = s { ball = s.ball { x = s.ball.x + s.ballSpeedX, y = s.ball.y + s.ballSpeedY } }
 
     -- Check the game for collisions and respond to them
     checkCollisions :: GameState -> GameState
@@ -200,7 +204,7 @@ updatePlayScreen =
     updateBricks { bricks, state } brickIndex =
       case state.bricks !! brickIndex of
 
-        -- If there is no brick at this index, we returned the end! Return the response
+        -- If there is no brick at this index, we reached the end! Return the response
         Nothing -> { bricks: bricks, state: state }
 
         -- If there is a brick indeed, we need to process it in the game
